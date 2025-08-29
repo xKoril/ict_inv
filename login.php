@@ -259,7 +259,7 @@ if (isset($_GET['logout']) && $_GET['logout'] === 'success') {
             <button type="submit" class="login-btn">🚀 Sign In</button>
         </form>
         
-        <div class="demo-accounts">
+        <!-- <div class="demo-accounts">
             <h3>🧪 Demo Accounts (Password: admin123)</h3>
             <div class="demo-account">
                 <span class="role">👑 Administrator</span>
@@ -285,7 +285,7 @@ if (isset($_GET['logout']) && $_GET['logout'] === 'success') {
                 <button type="button" class="quick-login-btn" onclick="quickLogin('user')">User</button>
                 <button type="button" class="quick-login-btn" onclick="quickLogin('viewer')">Viewer</button>
             </div>
-        </div>
+        </div> -->
     </div>
     
     <script>
