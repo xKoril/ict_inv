@@ -27,7 +27,8 @@ $stmt = $pdo->prepare(
         date_acquired,
         fund_source,
         amount_unit_cost AS unit_cost,
-        locator AS location
+        locator AS location,
+        ics_par_no AS equipment_ics_par_no
      FROM equipment
      WHERE equipment_id = ?"
 );
@@ -37,6 +38,21 @@ if (!$equipment) {
     echo '<p>Equipment not found.</p>';
     exit;
 }
+
+// Get the latest ICS/PAR No. from deployment history
+$latest_ics_stmt = $pdo->prepare(
+    "SELECT ics_par_no, date_deployed, time_deployed
+     FROM deployment_transactions
+     WHERE equipment_id = ?
+     ORDER BY date_deployed DESC, time_deployed DESC
+     LIMIT 1"
+);
+$latest_ics_stmt->execute([$equipment_id]);
+$latest_deployment = $latest_ics_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Use the latest ICS/PAR from deployment history, fallback to equipment table
+$current_ics_par_no = $latest_deployment ? $latest_deployment['ics_par_no'] : $equipment['equipment_ics_par_no'];
+$ics_source = $latest_deployment ? 'Latest Deployment' : 'Equipment Record';
 
 // Fetch deployment history
 $deployStmt = $pdo->prepare(
@@ -178,6 +194,28 @@ $borrowHistory = $borrowStmt->fetchAll(PDO::FETCH_ASSOC);
     .status-available { background: #d1ecf1; color: #0c5460; }
     .status-maintenance { background: #fff3cd; color: #856404; }
     .status-disposed { background: #f8d7da; color: #721c24; }
+    
+    .ics-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ics-source {
+      background: #e7f3ff;
+      color: #0056b3;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    .latest-deployment {
+      background: #d4edda;
+      color: #155724;
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-size: 0.9em;
+    }
   </style>
 </head>
 <body>
@@ -188,6 +226,14 @@ $borrowHistory = $borrowStmt->fetchAll(PDO::FETCH_ASSOC);
     <!-- Equipment Details -->
     <div class="box">
       <h2>📋 Equipment Information</h2>
+      
+      <?php if ($latest_deployment && $current_ics_par_no): ?>
+        <div class="latest-deployment">
+          📍 <strong>Current ICS/PAR:</strong> <?= htmlspecialchars($current_ics_par_no) ?>
+          (Last deployed: <?= htmlspecialchars($latest_deployment['date_deployed']) ?>)
+        </div>
+      <?php endif; ?>
+      
       <table class="details-table">
         <tr><th>Equipment ID</th><td><?=htmlspecialchars($equipment['equipment_id'])?></td></tr>
         <tr><th>PO No.</th><td><?=htmlspecialchars($equipment['po_no'] ?: 'N/A')?></td></tr>
@@ -207,6 +253,14 @@ $borrowHistory = $borrowStmt->fetchAll(PDO::FETCH_ASSOC);
         <tr><th>Fund Source</th><td><?=htmlspecialchars($equipment['fund_source'] ?: 'N/A')?></td></tr>
         <tr><th>Unit Cost</th><td><?=htmlspecialchars($equipment['unit_cost'] ? '₱' . number_format($equipment['unit_cost'], 2) : 'N/A')?></td></tr>
         <tr><th>Location</th><td><?=htmlspecialchars($equipment['location'] ?: 'N/A')?></td></tr>
+        <tr><th>ICS/PAR No.</th><td>
+          <div class="ics-info">
+            <span><?= htmlspecialchars($current_ics_par_no ?: 'Not assigned') ?></span>
+            <?php if ($current_ics_par_no): ?>
+              <span class="ics-source"><?= $ics_source ?></span>
+            <?php endif; ?>
+          </div>
+        </td></tr>
       </table>
     </div>
 
@@ -223,9 +277,14 @@ $borrowHistory = $borrowStmt->fetchAll(PDO::FETCH_ASSOC);
           <th>Time Deployed</th>
           <th>Remarks</th>
         </tr>
-        <?php foreach ($deployHistory as $d): ?>
-        <tr>
-          <td><?=htmlspecialchars($d['ics_par_no'] ?: 'N/A')?></td>
+        <?php foreach ($deployHistory as $index => $d): ?>
+        <tr <?= $index === 0 ? 'style="background-color: #e7f3ff; font-weight: bold;"' : '' ?>>
+          <td>
+            <?=htmlspecialchars($d['ics_par_no'] ?: 'N/A')?>
+            <?php if ($index === 0): ?>
+              <span style="color: #0056b3; font-size: 0.8em;">(Latest)</span>
+            <?php endif; ?>
+          </td>
           <td><?=htmlspecialchars($d['custodian'] ?: 'N/A')?></td>
           <td><?=htmlspecialchars($d['office'] ?: 'N/A')?></td>
           <td><?=htmlspecialchars($d['date_deployed'] ?: 'N/A')?></td>
