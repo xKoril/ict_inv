@@ -1,4 +1,18 @@
 <?php
+// Add authentication check at the top of index.php
+require_once 'auth.php';
+
+// Require user to be logged in
+$auth->requireLogin();
+
+// Get current user info for display
+$currentUser = $auth->getCurrentUser();
+
+// Or require specific permission
+$auth->requirePermission('add'); // for add pages
+$auth->requirePermission('edit'); // for edit pages
+$auth->requirePermission('delete'); // for delete pages
+
 require 'db.php';
 
 /**

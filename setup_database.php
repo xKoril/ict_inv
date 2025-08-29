@@ -1,9 +1,9 @@
 <?php
-// db.php: Database connection with correct password
+// db.php: XAMPP Compatible Database Connection
 $host = '127.0.0.1';
 $db   = 'ict_inventory';
-$user = 'root';
-$pass = 'Password@123!';     // Your MySQL password
+$user = 'root';              // XAMPP default user
+$pass = '';                  // XAMPP default password (empty)
 $charset = 'utf8';
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
@@ -19,7 +19,7 @@ try {
     echo '<div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px;">';
     echo '<h3>❌ Database Connection Failed</h3>';
     echo '<p><strong>Error:</strong> ' . htmlspecialchars($e->getMessage()) . '</p>';
-    echo '<p><strong>Next Step:</strong> <a href="setup_database.php" style="color: #0056b3;">Run Database Setup</a></p>';
+    echo '<p><strong>Solution:</strong> <a href="setup_database.php">Run Database Setup</a></p>';
     echo '</div>';
     exit;
 }

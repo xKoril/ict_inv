@@ -1,4 +1,14 @@
 <?php
+require_once 'auth.php';
+
+// Require login
+$auth->requireLogin();
+
+// Or require specific permission
+$auth->requirePermission('add'); // for add pages
+$auth->requirePermission('edit'); // for edit pages
+$auth->requirePermission('delete'); // for delete pages
+
 require 'db.php';
 
 $ics_par_no = $_GET['ics_par_no'] ?? '';

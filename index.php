@@ -1,4 +1,19 @@
 <?php
+// Add authentication check at the top of index.php
+require_once 'auth.php';
+
+// Require user to be logged in
+$auth->requireLogin();
+
+// Get current user info for display
+$currentUser = $auth->getCurrentUser();
+
+// Or require specific permission
+$auth->requirePermission('add'); // for add pages
+$auth->requirePermission('edit'); // for edit pages
+$auth->requirePermission('delete'); // for delete pages
+
+// Original index.php code continues here...
 require 'db.php';
 
 function getEnumValues(PDO $pdo, string $table, string $column): array {
@@ -17,8 +32,8 @@ $fc = $_GET['equipment_category'] ?? '';
 $fs = $_GET['equipment_status']   ?? '';
 $ft = $_GET['equipment_type']     ?? '';
 $fm = $_GET['model']              ?? '';
-$fsn = $_GET['serial_number']     ?? ''; // Added serial number filter
-$fb = $_GET['brand']              ?? ''; // Added brand filter
+$fsn = $_GET['serial_number']     ?? '';
+$fb = $_GET['brand']              ?? '';
 
 // Sorting parameters
 $sort = $_GET['sort'] ?? 'equipment_id';
@@ -27,7 +42,7 @@ $validSorts = ['equipment_id', 'equipment_category', 'equipment_status', 'equipm
 $sort = in_array($sort, $validSorts) ? $sort : 'equipment_id';
 $order = ($order === 'asc') ? 'asc' : 'desc';
 
-// --- PAGINATION VARS ---
+// Pagination vars
 $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 10;
 $offset = ($page - 1) * $limit;
@@ -38,8 +53,8 @@ if ($fc) { $filters[] = "equipment_category = ?"; $params[] = $fc; }
 if ($fs) { $filters[] = "equipment_status = ?";   $params[] = $fs; }
 if ($ft) { $filters[] = "equipment_type LIKE ?";  $params[] = "%$ft%"; }
 if ($fm) { $filters[] = "model LIKE ?";           $params[] = "%$fm%"; }
-if ($fsn) { $filters[] = "serial_number LIKE ?"; $params[] = "%$fsn%"; } // Added serial number filter
-if ($fb) { $filters[] = "brand LIKE ?";           $params[] = "%$fb%"; } // Added brand filter
+if ($fsn) { $filters[] = "serial_number LIKE ?"; $params[] = "%$fsn%"; }
+if ($fb) { $filters[] = "brand LIKE ?";           $params[] = "%$fb%"; }
 
 // Get total count for pagination
 $countSql = "SELECT COUNT(*) as total FROM equipment";
@@ -107,12 +122,45 @@ $equipment = $stmt->fetchAll();
       color: white;
       padding: 30px;
       text-align: center;
+      position: relative;
     }
     
     .header h1 {
       margin: 0;
       font-size: 2.5rem;
       font-weight: 300;
+    }
+    
+    .user-info {
+      position: absolute;
+      top: 15px;
+      right: 30px;
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    
+    .user-info .user-role {
+      background: rgba(255,255,255,0.2);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      margin-left: 8px;
+    }
+    
+    .logout-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      margin-left: 10px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.3s;
+    }
+    
+    .logout-btn:hover {
+      background: rgba(255,255,255,0.3);
     }
     
     .content {
@@ -142,6 +190,13 @@ $equipment = $stmt->fetchAll();
       background: #0056b3;
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+    }
+    
+    .top-actions button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
     
     .filter-form { 
@@ -283,6 +338,13 @@ $equipment = $stmt->fetchAll();
     .action-btn:first-child { background: #e3f2fd; border-color: #2196f3; }
     .action-btn:nth-child(2) { background: #fff3e0; border-color: #ff9800; }
     .action-btn:last-child { background: #ffebee; border-color: #f44336; }
+    
+    .action-btn:disabled {
+      background: #f8f9fa;
+      color: #6c757d;
+      cursor: not-allowed;
+      border-color: #dee2e6;
+    }
     
     .pagination-container {
       background: white;
@@ -436,6 +498,12 @@ $equipment = $stmt->fetchAll();
         font-size: 1.8rem;
       }
       
+      .user-info {
+        position: static;
+        text-align: center;
+        margin-top: 15px;
+      }
+      
       .content {
         padding: 20px;
       }
@@ -514,14 +582,32 @@ $equipment = $stmt->fetchAll();
 <body>
   <div class="container">
     <div class="header">
+      <div class="user-info">
+        👤 Welcome, <?= htmlspecialchars($currentUser['full_name']) ?>
+        <span class="user-role"><?= htmlspecialchars($currentUser['user_role']) ?></span>
+        <button onclick="location.href='logout.php'" class="logout-btn">🚪 Logout</button>
+      </div>
       <h1>MIS Equipment Inventory</h1>
     </div>
     
-    <div class="content">
-      <div class="top-actions">
-        <button onclick="location.href='add_equipment.php'">➕ Add New Equipment</button>
-        <button onclick="location.href='borrower.php'">📦 Borrow Equipment</button>
-        <button onclick="location.href='deployment.php'">🚚 Deploy Equipment</button>
+<div class="top-actions">
+        <button onclick="location.href='add_equipment.php'" 
+                <?= !$auth->hasPermission('add') ? 'disabled title="No permission to add equipment"' : '' ?>>
+          ➕ Add New Equipment
+        </button>
+        <button onclick="location.href='borrower.php'"
+                <?= !$auth->hasPermission('borrow') ? 'disabled title="No permission to borrow equipment"' : '' ?>>
+          📦 Borrow Equipment
+        </button>
+        <button onclick="location.href='deployment.php'"
+                <?= !$auth->hasPermission('deploy') ? 'disabled title="No permission to deploy equipment"' : '' ?>>
+          🚚 Deploy Equipment
+        </button>
+        <?php if ($auth->hasPermission('manage_users')): ?>
+        <button onclick="location.href='manage_users.php'" style="background: #dc3545;">
+          👥 Manage Users
+        </button>
+        <?php endif; ?>
       </div>
       
       <form method="get" class="filter-form">
@@ -622,8 +708,10 @@ $equipment = $stmt->fetchAll();
                 <tr>
                   <td>
                     <button class="action-btn" onclick="location.href='inspect_equipment.php?equipment_id=<?= $e['equipment_id'] ?>'">🔍 Inspect</button>
-                    <button class="action-btn" onclick="location.href='edit_equipment.php?id=<?= $e['equipment_id'] ?>'">✏️ Edit</button>
-                    <button class="action-btn" onclick="if(confirm('Delete this item?')) location.href='delete_equipment.php?id=<?= $e['equipment_id'] ?>'">🗑️ Delete</button>
+                    <button class="action-btn" onclick="location.href='edit_equipment.php?id=<?= $e['equipment_id'] ?>'"
+                            <?= !$auth->hasPermission('edit') ? 'disabled title="No permission to edit"' : '' ?>>✏️ Edit</button>
+                    <button class="action-btn" onclick="<?= $auth->hasPermission('delete') ? "if(confirm('Delete this item?')) location.href='delete_equipment.php?id={$e['equipment_id']}'" : "alert('No permission to delete')" ?>"
+                            <?= !$auth->hasPermission('delete') ? 'disabled title="No permission to delete"' : '' ?>>🗑️ Delete</button>
                   </td>
                   <td><?= $e['equipment_id'] ?></td>
                   <td><?= htmlspecialchars($e['equipment_category']) ?></td>
