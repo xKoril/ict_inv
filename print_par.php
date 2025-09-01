@@ -146,7 +146,7 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         .equipment-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 40pt;
+            margin-bottom: 0pt;
             font-size: 9pt;
             border: 2px solid #000;
         }
@@ -193,25 +193,38 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         }
         
         .signatures-section {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 30pt;
+            width: 100%;
+            border: 2px solid #000;
+            border-top: none;
+            border-collapse: collapse;
             font-size: 9pt;
             page-break-inside: avoid;
             break-inside: avoid;
+            display: table;
+            table-layout: fixed;
         }
         
         .signature-block {
-            width: 48%;
-            text-align: left;
+            width: 50%;
+            border-right: 1px solid #000;
+            padding: 15pt;
+            background: white;
+            display: table-cell;
+            vertical-align: top;
+        }
+        
+        .signature-block:last-child {
+            border-right: none;
         }
         
         .signature-header {
             font-weight: bold;
-            margin-bottom: 8pt;
+            margin-bottom: 15pt;
+            text-align: left;
+            font-size: 10pt;
         }
         
-        .signature-line {
+        .signature-area {
             border-bottom: 1px solid #000;
             height: 25pt;
             margin-bottom: 3pt;
@@ -222,6 +235,7 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
             font-weight: bold;
             text-align: center;
             margin-bottom: 2pt;
+            font-size: 9pt;
         }
         
         .signature-label {
@@ -244,11 +258,17 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
             margin-top: 10pt;
         }
         
-        .date-line {
+        .date-box {
             border-bottom: 1px solid #000;
             width: 80pt;
             height: 12pt;
             margin-left: 5pt;
+        }
+        
+        .date-label {
+            text-align: center;
+            font-size: 8pt;
+            margin-top: 3pt;
         }
         
         @media print {
@@ -385,28 +405,28 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         <div class="signatures-section">
             <div class="signature-block">
                 <div class="signature-header">Received by:</div>
-                <div class="signature-line"></div>
+                <div class="signature-area"></div>
                 <div class="signature-name"><?= htmlspecialchars($deployment_info['custodian']) ?></div>
                 <div class="signature-label">Signature over Printed Name of End User</div>
                 <div class="signature-position"><?= htmlspecialchars($deployment_info['office_custodian']) ?></div>
                 <div class="signature-label">Position / Office</div>
                 <div class="date-section">
-                    <span class="date-line"></span>
+                    <div class="date-box"></div>
                 </div>
-                <div style="text-align: center; font-size: 8pt; margin-top: 2pt;">Date</div>
+                <div class="date-label">Date</div>
             </div>
             
             <div class="signature-block">
                 <div class="signature-header">Issued by:</div>
-                <div class="signature-line"></div>
+                <div class="signature-area"></div>
                 <div class="signature-name">Pristine Ellaine D. Magdaug</div>
                 <div class="signature-label">Signature over Printed Name of Supply and/or Property Custodian</div>
                 <div class="signature-position">Supply Officer III / DTI RO 6</div>
                 <div class="signature-label">Position / Office</div>
                 <div class="date-section">
-                    <span class="date-line"></span>
+                    <div class="date-box"></div>
                 </div>
-                <div style="text-align: center; font-size: 8pt; margin-top: 2pt;">Date</div>
+                <div class="date-label">Date</div>
             </div>
         </div>
     </div>

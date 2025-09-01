@@ -8,11 +8,6 @@ $auth->requireLogin();
 // Get current user info for display
 $currentUser = $auth->getCurrentUser();
 
-// Or require specific permission
-$auth->requirePermission('add'); // for add pages
-$auth->requirePermission('edit'); // for edit pages
-$auth->requirePermission('delete'); // for delete pages
-
 // Original index.php code continues here...
 require 'db.php';
 
