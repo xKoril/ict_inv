@@ -39,6 +39,41 @@ $equipment_list = $equipment_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get the fund source from the first equipment (assuming all equipment in one ICS has same fund source)
 $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'ISSP 2024';
+
+// Calculate dynamic blank rows needed
+function calculateBlankRows($equipment_count) {
+    // Much more conservative page calculations to ensure single page
+    $page_height = 842; // A4 page height in points
+    $top_margin = 57; // 8mm in points  
+    $bottom_margin = 57; // 8mm in points
+    $header_height = 150; // Increased - appendix + title + form header + spacing
+    $table_header_height = 50; // Increased - table headers with proper spacing
+    $signature_height = 180; // Increased - signature section MUST fit on page
+    
+    // Very conservative available space calculation
+    $available_height = $page_height - $top_margin - $bottom_margin - $header_height - $table_header_height - $signature_height;
+    // This gives us about 348pt for table content
+    
+    // More conservative row height estimates
+    $avg_row_height = 70; // Increased - equipment rows with descriptions are tall
+    $blank_row_height = 15; // Reduced - smaller blank rows
+    
+    // Calculate used height by actual equipment
+    $used_height = $equipment_count * $avg_row_height;
+    
+    // Only add blank rows if we have plenty of space left
+    if ($used_height < ($available_height * 0.6)) { // Only use 60% of available space
+        $safe_remaining_height = ($available_height * 0.6) - $used_height;
+        $blank_rows_needed = floor($safe_remaining_height / $blank_row_height);
+        
+        // Very conservative cap - never add more than 10 blank rows
+        return min($blank_rows_needed, 10);
+    }
+    
+    return 0; // Don't add blank rows unless we're sure they fit
+}
+
+$blank_rows_count = calculateBlankRows(count($equipment_list));
 ?>
 
 <!DOCTYPE html>
@@ -63,6 +98,19 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
             max-width: none;
             margin: 0;
             background: white;
+            display: flex;
+            flex-direction: column;
+            min-height: 100%;
+        }
+        
+        .header-section {
+            flex-shrink: 0; /* Don't allow header to shrink */
+        }
+        
+        .content-section {
+            flex-grow: 1; /* Allow content to grow */
+            display: flex;
+            flex-direction: column;
         }
         
         .header-right {
@@ -75,32 +123,31 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
         .title-logo-section {
             display: flex;
             align-items: center;
-            justify-content: flex-start;
-            margin-bottom: 30pt;
+            justify-content: center;
+            margin-bottom: 20pt;
             position: relative;
-            min-height: 45pt;
+            min-height: 60pt;
         }
         
         .dti-logo {
-            width: 45pt;
-            height: 45pt;
+            position: absolute;
+            left: 0;
+            width: 60pt;
+            height: 60pt;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 7pt;
-            text-align: center;
-            margin-right: 20pt;
-            flex-shrink: 0;
         }
         
         .form-title {
             text-align: center;
             font-weight: bold;
             font-size: 12pt;
+            font-family: 'Times New Roman', Times, serif;
             text-transform: uppercase;
             letter-spacing: 1pt;
-            flex: 1;
             margin: 0;
+            flex: 1;
         }
         
         .form-header {
@@ -146,6 +193,7 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
             margin-bottom: 0pt;
             font-size: 9pt;
             border: 2px solid #000;
+            flex-grow: 1; /* Allow table to grow and fill space */
         }
         
         .equipment-table th,
@@ -161,12 +209,17 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
             font-weight: bold;
             font-size: 8pt;
             text-transform: uppercase;
+            text-align: center;
         }
         
         .equipment-table .desc-col {
-            text-align: left;
+            text-align: center;
             width: 35%;
             font-size: 8pt;
+        }
+        
+        .equipment-table .desc-col .description-content {
+            text-align: left;
         }
         
         .equipment-table .qty-col { width: 8%; }
@@ -188,6 +241,18 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
         
         .description-line {
             margin-bottom: 1pt;
+        }
+        
+        .equipment-table .blank-row {
+            height: 15pt;
+        }
+        
+        .equipment-table .blank-row td {
+            border: 1px solid #000;
+            padding: 4pt 3pt;
+            vertical-align: top;
+            text-align: center;
+            background-color: white;
         }
         
         .signatures-section {
@@ -272,24 +337,42 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
         @media print {
             body { 
                 margin: 0; 
-                padding: 10mm;
+                padding: 8mm;
                 -webkit-print-color-adjust: exact;
                 color-adjust: exact;
+                font-size: 10pt;
             }
             .no-print { display: none !important; }
-            .form-container { max-width: none; }
+            .form-container { 
+                max-width: none;
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+            }
+            
+            /* Force everything to stay on first page */
+            .signatures-section {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                page-break-before: avoid !important;
+            }
+            
+            .equipment-table {
+                page-break-after: avoid !important;
+                page-break-inside: auto;
+            }
+            
+            /* Prevent page breaks */
+            * {
+                page-break-before: avoid !important;
+                page-break-after: avoid !important;
+            }
+            
             @page {
                 margin: 8mm;
                 size: A4;
-                @top-left { content: ""; }
-                @top-center { content: ""; }
-                @top-right { content: ""; }
-                @bottom-left { content: ""; }
-                @bottom-center { content: counter(page) " of " counter(pages); }
-                @bottom-right { content: ""; }
             }
             
-            /* Hide browser default headers and footers */
             html {
                 -webkit-print-color-adjust: exact;
             }
@@ -337,41 +420,43 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
     </div>
 
     <div class="form-container">
-        <div class="header-right">
-            Appendix 59
-        </div>
-        
-        <div class="form-title">
-            INVENTORY CUSTODIAN SLIP
-        </div>
-        
-        <div class="logo-section">
-            <div class="dti-logo">
-                <img src="dti-logo.png" style="width:100%; height:100%; object-fit: contain;" alt="DTI Logo">
+        <div class="header-section">
+            <div class="header-right">
+                Appendix 59
             </div>
-        </div>
-        
-        <div class="form-header">
-            <div class="header-row">
-                <div class="header-left">
-                    <span class="field-label">Entity Name:</span>
-                    <span class="field-value">DTI Region VI</span>
+            
+            <div class="title-logo-section">
+                <div class="dti-logo">
+                    <img src="dti-logo.png" style="width:100%; height:100%; object-fit: contain;" alt="DTI Logo">
                 </div>
-                <div class="header-right-field">
-                    <span class="field-label">ICS No.:</span>
-                    <span class="field-value"><?= htmlspecialchars($ics_par_no) ?></span>
+                <div class="form-title">
+                    INVENTORY CUSTODIAN SLIP
                 </div>
             </div>
             
-            <div class="header-row">
-                <div class="header-left">
-                    <span class="field-label">Fund Cluster:</span>
-                    <span class="field-value"><?= htmlspecialchars($fund_source) ?></span>
+            <div class="form-header">
+                <div class="header-row">
+                    <div class="header-left">
+                        <span class="field-label">Entity Name:</span>
+                        <span class="field-value">DTI Region VI</span>
+                    </div>
+                    <div class="header-right-field">
+                        <span class="field-label">ICS No.:</span>
+                        <span class="field-value"><?= htmlspecialchars($ics_par_no) ?></span>
+                    </div>
+                </div>
+                
+                <div class="header-row">
+                    <div class="header-left">
+                        <span class="field-label">Fund Cluster:</span>
+                        <span class="field-value"><?= htmlspecialchars($fund_source) ?></span>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <table class="equipment-table">
+        <div class="content-section">
+            <table class="equipment-table">
             <thead>
                 <tr>
                     <th rowspan="2" class="qty-col">Quantity</th>
@@ -408,6 +493,21 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
                     <td><?= $item['estimate_useful_life'] ?> Years</td>
                 </tr>
                 <?php endforeach; ?>
+                
+                <?php 
+                // Add blank rows to fill the page
+                for ($i = 0; $i < $blank_rows_count; $i++): 
+                ?>
+                <tr class="blank-row">
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td class="desc-col">&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+                <?php endfor; ?>
             </tbody>
         </table>
         
@@ -439,5 +539,6 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
             </div>
         </div>
     </div>
+</div>
 </body>
 </html>
