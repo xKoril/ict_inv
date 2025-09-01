@@ -42,6 +42,22 @@ $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'IS
 
 // Convert ICS number to PAR number (if needed)
 $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
+
+// --- REVISED BLANK ROWS CALCULATION ---
+function calculateBlankRows($equipment_count, $equipment_list) {
+    // Determine the number of rows to fill on the first page.
+    // Adjusted to 12 to ensure the signature section does not get pushed to a new page.
+    $max_rows_per_page = 12;
+    
+    // If the number of equipment items is less than the max, add blank rows to fill the page.
+    if ($equipment_count < $max_rows_per_page) {
+        return $max_rows_per_page - $equipment_count;
+    }
+    
+    return 0;
+}
+
+$blank_rows_count = calculateBlankRows(count($equipment_list), $equipment_list);
 ?>
 
 <!DOCTYPE html>
@@ -66,6 +82,19 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
             max-width: none;
             margin: 0;
             background: white;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        .header-section {
+            flex-shrink: 0;
+        }
+        
+        .content-section {
+            display: flex;
+            flex-direction: column;
         }
         
         .header-right {
@@ -78,32 +107,31 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         .title-logo-section {
             display: flex;
             align-items: center;
-            justify-content: flex-start;
-            margin-bottom: 30pt;
+            justify-content: center;
+            margin-bottom: 20pt;
             position: relative;
-            min-height: 45pt;
+            min-height: 60pt;
         }
         
         .dti-logo {
-            width: 45pt;
-            height: 45pt;
+            position: absolute;
+            left: 0;
+            width: 60pt;
+            height: 60pt;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 7pt;
-            text-align: center;
-            margin-right: 20pt;
-            flex-shrink: 0;
         }
         
         .form-title {
             text-align: center;
             font-weight: bold;
             font-size: 12pt;
+            font-family: 'Times New Roman', Times, serif;
             text-transform: uppercase;
             letter-spacing: 1pt;
-            flex: 1;
             margin: 0;
+            flex: 1;
         }
         
         .form-header {
@@ -146,7 +174,7 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         .equipment-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 0pt;
+            margin-bottom: 0;
             font-size: 9pt;
             border: 2px solid #000;
         }
@@ -167,9 +195,13 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         }
         
         .equipment-table .desc-col {
-            text-align: left;
+            text-align: center;
             width: 35%;
             font-size: 8pt;
+        }
+        
+        .equipment-table .desc-col .description-content {
+            text-align: left;
         }
         
         .equipment-table .qty-col { width: 8%; }
@@ -192,6 +224,18 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
             margin-bottom: 1pt;
         }
         
+        .equipment-table .blank-row {
+            height: 22pt; /* Sets a fixed height for blank rows */
+        }
+        
+        .equipment-table .blank-row td {
+            border: 1px solid #000;
+            padding: 4pt 3pt;
+            vertical-align: top;
+            text-align: center;
+            background-color: white;
+        }
+        
         .signatures-section {
             width: 100%;
             border: 2px solid #000;
@@ -202,6 +246,7 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
             break-inside: avoid;
             display: table;
             table-layout: fixed;
+            margin-top: 0;
         }
         
         .signature-block {
@@ -214,7 +259,7 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         }
         
         .signature-block:last-child {
-            border-right: none;
+            border-right: 2px solid #000;
         }
         
         .signature-header {
@@ -238,7 +283,7 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
             font-size: 9pt;
         }
         
-        .signature-label {
+.signature-label {
             text-align: center;
             font-size: 8pt;
             margin-bottom: 2pt;
@@ -274,21 +319,28 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
         @media print {
             body { 
                 margin: 0; 
-                padding: 8mm;
+                padding: 10mm;
                 -webkit-print-color-adjust: exact;
                 color-adjust: exact;
             }
             .no-print { display: none !important; }
-            .form-container { max-width: none; }
+            .form-container { 
+                height: 297mm;
+                min-height: unset;
+                padding: 10mm;
+            }
             @page {
-                margin: 8mm;
                 size: A4;
-                @top-left { content: ""; }
-                @top-center { content: ""; }
-                @top-right { content: ""; }
-                @bottom-left { content: ""; }
-                @bottom-center { content: counter(page) " of " counter(pages); }
-                @bottom-right { content: ""; }
+                margin: 0;
+            }
+            .signatures-section {
+                page-break-before: avoid !important;
+                margin-top: 0;
+            }
+            
+            .header-section, .content-section, .equipment-table, .signatures-section {
+                page-break-before: avoid !important;
+                page-break-after: avoid !important;
             }
         }
         
@@ -334,99 +386,117 @@ $par_no = str_replace('ICS-', 'PAR-', $ics_par_no);
     </div>
 
     <div class="form-container">
-        <div class="header-right">
-            Appendix 71
-        </div>
-        
-        <div class="title-logo-section">
-            <div class="dti-logo">
-                <img src="dti-logo.png" style="width:100%; height:100%; object-fit: contain;" alt="DTI Logo">
+        <div class="header-section">
+            <div class="header-right">
+                Appendix 71
             </div>
-            <div class="form-title">
-                PROPERTY ACKNOWLEDGMENT RECEIPT
-            </div>
-        </div>
-        
-        <div class="form-header">
-            <div class="header-row">
-                <div class="header-left">
-                    <span class="field-label">Entity Name :</span>
-                    <span class="field-value">DTI 6</span>
+            
+            <div class="title-logo-section">
+                <div class="dti-logo">
+                    <img src="dti-logo.png" style="width:100%; height:100%; object-fit: contain;" alt="DTI Logo">
                 </div>
-                <div class="header-right-field">
-                    <span class="field-label">PAR No.:</span>
-                    <span class="field-value"><?= htmlspecialchars($par_no) ?></span>
+                <div class="form-title">
+                    PROPERTY ACKNOWLEDGMENT RECEIPT
                 </div>
             </div>
             
-            <div class="header-row">
-                <div class="header-left">
-                    <span class="field-label">Fund Cluster:</span>
-                    <span class="field-value"><?= htmlspecialchars($fund_source) ?></span>
+            <div class="form-header">
+                <div class="header-row">
+                    <div class="header-left">
+                        <span class="field-label">Entity Name :</span>
+                        <span class="field-value">DTI 6</span>
+                    </div>
+                    <div class="header-right-field">
+                        <span class="field-label">PAR No.:</span>
+                        <span class="field-value"><?= htmlspecialchars($par_no) ?></span>
+                    </div>
+                </div>
+                
+                <div class="header-row">
+                    <div class="header-left">
+                        <span class="field-label">Fund Cluster:</span>
+                        <span class="field-value"><?= htmlspecialchars($fund_source) ?></span>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <table class="equipment-table">
-            <thead>
-                <tr>
-                    <th class="qty-col">Quantity</th>
-                    <th class="unit-col">Unit</th>
-                    <th class="desc-col">Description</th>
-                    <th class="prop-col">Property Number</th>
-                    <th class="date-col">Date Acquired</th>
-                    <th class="amount-col">Amount</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($equipment_list as $item): ?>
-                <tr>
-                    <td><?= $item['quantity'] ?: 1 ?></td>
-                    <td><?= htmlspecialchars($item['unit'] ?: 'Unit') ?></td>
-                    <td class="desc-col">
-                        <div class="description-content">
-                            <strong><?= htmlspecialchars($item['equipment_type']) ?></strong>
-                            <div class="description-line">Brand: <?= htmlspecialchars($item['brand']) ?></div>
-                            <div class="description-line">Model: <?= htmlspecialchars($item['model']) ?></div>
-                            <div class="description-line">Serial Number: <?= htmlspecialchars($item['serial_number']) ?></div>
-                            <?php if ($item['description_specification']): ?>
-                            <div class="description-line">Description: <?= htmlspecialchars($item['description_specification']) ?></div>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                    <td><?= htmlspecialchars($item['inventory_item_no_property_no']) ?></td>
-                    <td><?= date('n/j/Y', strtotime($item['date_acquired'])) ?></td>
-                    <td><?= number_format($item['amount_unit_cost'], 2) ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        
-        <div class="signatures-section">
-            <div class="signature-block">
-                <div class="signature-header">Received by:</div>
-                <div class="signature-area"></div>
-                <div class="signature-name"><?= htmlspecialchars($deployment_info['custodian']) ?></div>
-                <div class="signature-label">Signature over Printed Name of End User</div>
-                <div class="signature-position"><?= htmlspecialchars($deployment_info['office_custodian']) ?></div>
-                <div class="signature-label">Position / Office</div>
-                <div class="date-section">
-                    <div class="date-box"></div>
-                </div>
-                <div class="date-label">Date</div>
-            </div>
+        <div class="content-section">
+            <table class="equipment-table">
+                <thead>
+                    <tr>
+                        <th class="qty-col">Quantity</th>
+                        <th class="unit-col">Unit</th>
+                        <th class="desc-col">Description</th>
+                        <th class="prop-col">Property Number</th>
+                        <th class="date-col">Date Acquired</th>
+                        <th class="amount-col">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($equipment_list as $item): ?>
+                    <tr>
+                        <td><?= $item['quantity'] ?: 1 ?></td>
+                        <td><?= htmlspecialchars($item['unit'] ?: 'Unit') ?></td>
+                        <td class="desc-col">
+                            <div class="description-content">
+                                <strong><?= htmlspecialchars($item['equipment_type']) ?></strong>
+                                <div class="description-line">Brand: <?= htmlspecialchars($item['brand']) ?></div>
+                                <div class="description-line">Model: <?= htmlspecialchars($item['model']) ?></div>
+                                <div class="description-line">Serial Number: <?= htmlspecialchars($item['serial_number']) ?></div>
+                                <?php if ($item['description_specification']): ?>
+                                <div class="description-line">Description: <?= htmlspecialchars($item['description_specification']) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                        <td><?= htmlspecialchars($item['inventory_item_no_property_no']) ?></td>
+                        <td><?= date('n/j/Y', strtotime($item['date_acquired'])) ?></td>
+                        <td><?= number_format($item['amount_unit_cost'], 2) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    
+                    <?php 
+                    // Add blank rows to fill the page
+                    for ($i = 0; $i < $blank_rows_count; $i++): 
+                    ?>
+                    <tr class="blank-row">
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td class="desc-col">&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                    </tr>
+                    <?php endfor; ?>
+                </tbody>
+            </table>
             
-            <div class="signature-block">
-                <div class="signature-header">Issued by:</div>
-                <div class="signature-area"></div>
-                <div class="signature-name">Pristine Ellaine D. Magdaug</div>
-                <div class="signature-label">Signature over Printed Name of Supply and/or Property Custodian</div>
-                <div class="signature-position">Supply Officer III / DTI RO 6</div>
-                <div class="signature-label">Position / Office</div>
-                <div class="date-section">
-                    <div class="date-box"></div>
+            <div class="signatures-section">
+                <div class="signature-block">
+                    <div class="signature-header">Received by:</div>
+                    <div class="signature-area"></div>
+                    <div class="signature-name"><?= htmlspecialchars($deployment_info['custodian']) ?></div>
+                    <div class="signature-label">Signature over Printed Name of End User</div>
+                    <div class="signature-position"><?= htmlspecialchars($deployment_info['office_custodian']) ?></div>
+                    <div class="signature-label">Position / Office</div>
+                    <div class="date-section">
+                        <div class="date-box"></div>
+                    </div>
+                    <div class="date-label">Date</div>
                 </div>
-                <div class="date-label">Date</div>
+                
+                <div class="signature-block">
+                    <div class="signature-header">Issued by:</div>
+                    <div class="signature-area"></div>
+                    <div class="signature-name">Pristine Ellaine D. Magdaug</div>
+                    <div class="signature-label">Signature over Printed Name of Supply and/or Property Custodian</div>
+                    <div class="signature-position">Supply Officer III / DTI RO 6</div>
+                    <div class="signature-label">Position / Office</div>
+                    <div class="date-section">
+                        <div class="date-box"></div>
+                    </div>
+                    <div class="date-label">Date</div>
+                </div>
             </div>
         </div>
     </div>

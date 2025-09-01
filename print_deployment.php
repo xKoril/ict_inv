@@ -40,37 +40,22 @@ $equipment_list = $equipment_stmt->fetchAll(PDO::FETCH_ASSOC);
 // Get the fund source from the first equipment (assuming all equipment in one ICS has same fund source)
 $fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'ISSP 2024';
 
-// Calculate dynamic blank rows needed
+// Calculate dynamic blank rows needed - CONSERVATIVE to keep on one page
 function calculateBlankRows($equipment_count) {
-    // Much more conservative page calculations to ensure single page
-    $page_height = 842; // A4 page height in points
-    $top_margin = 57; // 8mm in points  
-    $bottom_margin = 57; // 8mm in points
-    $header_height = 150; // Increased - appendix + title + form header + spacing
-    $table_header_height = 50; // Increased - table headers with proper spacing
-    $signature_height = 180; // Increased - signature section MUST fit on page
+    // Conservative calculations - prioritize keeping everything on first page
+    $page_height = 842;
+    $used_space = 600; // Conservative estimate of all fixed content
+    $available_for_rows = $page_height - $used_space; // About 240pt available
     
-    // Very conservative available space calculation
-    $available_height = $page_height - $top_margin - $bottom_margin - $header_height - $table_header_height - $signature_height;
-    // This gives us about 348pt for table content
+    $equipment_height = $equipment_count * 70; // Conservative equipment row height
+    $remaining_height = $available_for_rows - $equipment_height;
     
-    // More conservative row height estimates
-    $avg_row_height = 70; // Increased - equipment rows with descriptions are tall
-    $blank_row_height = 15; // Reduced - smaller blank rows
-    
-    // Calculate used height by actual equipment
-    $used_height = $equipment_count * $avg_row_height;
-    
-    // Only add blank rows if we have plenty of space left
-    if ($used_height < ($available_height * 0.6)) { // Only use 60% of available space
-        $safe_remaining_height = ($available_height * 0.6) - $used_height;
-        $blank_rows_needed = floor($safe_remaining_height / $blank_row_height);
-        
-        // Very conservative cap - never add more than 10 blank rows
-        return min($blank_rows_needed, 10);
+    if ($remaining_height > 50) { // Only if significant space remains
+        $blank_rows = floor($remaining_height / 25); // 25pt per blank row
+        return min($blank_rows, 12); // Cap at 12 to be safe
     }
     
-    return 0; // Don't add blank rows unless we're sure they fit
+    return 3; // Minimal blank rows for appearance
 }
 
 $blank_rows_count = calculateBlankRows(count($equipment_list));
@@ -188,7 +173,7 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         }
         
         .equipment-table {
-            width: 100%;
+            width: calc(100% - 2px);
             border-collapse: collapse;
             margin-bottom: 0pt;
             font-size: 9pt;
@@ -244,7 +229,7 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         }
         
         .equipment-table .blank-row {
-            height: 15pt;
+            height: 25pt;
         }
         
         .equipment-table .blank-row td {
@@ -256,7 +241,7 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         }
         
         .signatures-section {
-            width: 100%;
+            width: calc(100% - 2px);
             border: 2px solid #000;
             border-top: none;
             border-collapse: collapse;
@@ -265,6 +250,7 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
             break-inside: avoid;
             display: table;
             table-layout: fixed;
+            margin: 0;
         }
         
         .signature-block {
@@ -277,7 +263,7 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         }
         
         .signature-block:last-child {
-            border-right: none;
+            border-right: 2px solid #000;
         }
         
         .signature-header {
@@ -337,20 +323,17 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         @media print {
             body { 
                 margin: 0; 
-                padding: 8mm;
+                padding: 10mm;
                 -webkit-print-color-adjust: exact;
                 color-adjust: exact;
                 font-size: 10pt;
             }
             .no-print { display: none !important; }
             .form-container { 
-                max-width: none;
-                height: 100vh;
-                display: flex;
-                flex-direction: column;
+                width: 100%;
             }
             
-            /* Force everything to stay on first page */
+            /* Keep everything on one page */
             .signatures-section {
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
@@ -359,7 +342,6 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
             
             .equipment-table {
                 page-break-after: avoid !important;
-                page-break-inside: auto;
             }
             
             /* Prevent page breaks */
@@ -369,7 +351,7 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
             }
             
             @page {
-                margin: 8mm;
+                margin: 10mm;
                 size: A4;
             }
             
