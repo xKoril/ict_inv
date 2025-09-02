@@ -18,6 +18,9 @@ require 'db.php';
 // Offices list
 $offices = ['DTI-Aklan','DTI-Antique','DTI-Capiz','DTI-Guimaras','DTI-Iloilo','DTI-Negros Occ','DTI RO - ORD','DTI RO - MIS','DTI RO - BDD','DTI RO - CPD','DTI RO - FAD','DTI RO - IDD','COA','SBCorp'];
 
+// Define which departments can lend their deployed equipment
+$lending_departments = ['DTI RO - MIS', 'DTI RO - ORD']; // Add departments that can lend
+
 // Fetch categories from database
 $cat_stmt = $pdo->query("SELECT DISTINCT equipment_category FROM equipment WHERE equipment_category IS NOT NULL AND equipment_category != '' ORDER BY equipment_category");
 $categories = $cat_stmt->fetchAll(PDO::FETCH_COLUMN);
@@ -73,11 +76,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Fetch ALL Available equipment (no server-side filtering)
-$sql = 'SELECT equipment_id, equipment_category, equipment_status, equipment_type, brand, model, serial_number
-        FROM equipment
-        WHERE equipment_status = "Available for Deployment"
-        ORDER BY equipment_category, equipment_type, brand, model';
+// ENHANCED: Fetch equipment that's Available OR Deployed to lending departments (no server-side filtering)
+$lending_conditions = [];
+foreach ($lending_departments as $dept) {
+    $lending_conditions[] = "dt.office_custodian = '" . $dept . "'";
+}
+$lending_clause = implode(' OR ', $lending_conditions);
+
+$sql = "
+SELECT DISTINCT
+    e.equipment_id, 
+    e.equipment_category, 
+    e.equipment_status, 
+    e.equipment_type, 
+    e.brand, 
+    e.model, 
+    e.serial_number
+FROM equipment e
+LEFT JOIN (
+    SELECT 
+        equipment_id, 
+        office_custodian,
+        ROW_NUMBER() OVER (PARTITION BY equipment_id ORDER BY date_deployed DESC, time_deployed DESC) as rn
+    FROM deployment_transactions 
+) dt ON e.equipment_id = dt.equipment_id AND dt.rn = 1
+WHERE 
+    -- Available equipment (existing logic)
+    e.equipment_status = 'Available for Deployment'
+    OR 
+    -- Deployed equipment from lending departments that's not already borrowed
+    (e.equipment_status = 'Deployed' 
+     AND ($lending_clause)
+     AND NOT EXISTS (
+         SELECT 1 FROM borrow_transactions bt 
+         WHERE bt.equipment_id = e.equipment_id 
+         AND bt.date_returned IS NULL
+     ))
+ORDER BY e.equipment_category, e.equipment_type, e.brand, e.model
+";
 $stmt = $pdo->query($sql);
 $available = $stmt->fetchAll();
 ?>

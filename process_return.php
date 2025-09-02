@@ -50,11 +50,49 @@ try {
          WHERE borrower_id_seq = :id"
     );
 
-    // Update equipment status back to available
+    // ENHANCED: Smart equipment status update based on previous deployment status
     $updEquip = $pdo->prepare(
         "UPDATE equipment e
          JOIN borrow_transactions bt ON e.equipment_id = bt.equipment_id
-         SET e.equipment_status = 'Available for Deployment'
+         SET e.equipment_status = CASE 
+             -- Check if equipment was deployed before borrowing by looking at deployment history
+             WHEN EXISTS (
+                 SELECT 1 FROM deployment_transactions dt 
+                 WHERE dt.equipment_id = e.equipment_id 
+                 AND dt.date_deployed < bt.date_borrowed
+                 AND NOT EXISTS (
+                     SELECT 1 FROM return_transactions rt 
+                     WHERE rt.equipment_id = e.equipment_id 
+                     AND rt.return_date > dt.date_deployed 
+                     AND rt.return_date < bt.date_borrowed
+                 )
+             ) THEN 'Deployed'
+             -- Otherwise, make it available for deployment
+             ELSE 'Available for Deployment'
+         END,
+         e.locator = CASE 
+             -- If returning to deployed status, get the office from latest deployment
+             WHEN EXISTS (
+                 SELECT 1 FROM deployment_transactions dt 
+                 WHERE dt.equipment_id = e.equipment_id 
+                 AND dt.date_deployed < bt.date_borrowed
+                 AND NOT EXISTS (
+                     SELECT 1 FROM return_transactions rt 
+                     WHERE rt.equipment_id = e.equipment_id 
+                     AND rt.return_date > dt.date_deployed 
+                     AND rt.return_date < bt.date_borrowed
+                 )
+             ) THEN (
+                 SELECT dt2.office_custodian 
+                 FROM deployment_transactions dt2 
+                 WHERE dt2.equipment_id = e.equipment_id 
+                 AND dt2.date_deployed < bt.date_borrowed
+                 ORDER BY dt2.date_deployed DESC, dt2.time_deployed DESC 
+                 LIMIT 1
+             )
+             -- Otherwise, set to MIS (central location)
+             ELSE 'DTI RO - MIS'
+         END
          WHERE bt.borrower_id_seq = :id"
     );
 
@@ -93,3 +131,4 @@ try {
     header('Location: borrower.php?error=' . urlencode('Error processing return: ' . $e->getMessage()));
     exit;
 }
+?>

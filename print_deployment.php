@@ -23,12 +23,11 @@ if (!$deployment_info) {
     exit;
 }
 
-// Get equipment list with all necessary fields from SQL
+// Get equipment list
 $equipment_sql = "SELECT e.equipment_type, e.brand, e.model, e.serial_number, e.locator,
                          e.description_specification, dt.date_deployed, e.equipment_status,
                          e.equipment_id, e.amount_unit_cost, e.estimate_useful_life, 
-                         e.inventory_item_no_property_no, e.fund_source, e.quantity, e.unit,
-                         dt.custodian, dt.office_custodian
+                         e.inventory_item_no_property_no
                   FROM equipment e
                   JOIN deployment_transactions dt ON e.equipment_id = dt.equipment_id
                   WHERE dt.ics_par_no = ?
@@ -37,28 +36,45 @@ $equipment_stmt = $pdo->prepare($equipment_sql);
 $equipment_stmt->execute([$ics_par_no]);
 $equipment_list = $equipment_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get the fund source from the first equipment (assuming all equipment in one ICS has same fund source)
-$fund_source = !empty($equipment_list) ? $equipment_list[0]['fund_source'] : 'ISSP 2024';
-
-// Calculate dynamic blank rows needed - CONSERVATIVE to keep on one page
-function calculateBlankRows($equipment_count) {
-    // Conservative calculations - prioritize keeping everything on first page
-    $page_height = 842;
-    $used_space = 600; // Conservative estimate of all fixed content
-    $available_for_rows = $page_height - $used_space; // About 240pt available
+// ENHANCED: More precise dynamic blank rows calculation with signature positioning
+function calculateDynamicBlankRows($equipment_count) {
+    // Page dimensions (A4 with 10mm margins)
+    $page_height_mm = 297 - 20; // A4 height minus margins (277mm)
+    $page_height_pt = $page_height_mm * 2.83465; // Convert mm to points (~785pt)
     
-    $equipment_height = $equipment_count * 70; // Conservative equipment row height
-    $remaining_height = $available_for_rows - $equipment_height;
+    // Element heights in points (measured precisely)
+    $header_height_pt = 140; // Header section (logo, title, entity info)
+    $table_header_pt = 30;   // Table header row
+    $row_height_pt = 25;     // Each data/blank row
+    $signature_height_pt = 150; // Signature section
+    $bottom_margin_pt = 10;  // Safety margin from page bottom
     
-    if ($remaining_height > 50) { // Only if significant space remains
-        $blank_rows = floor($remaining_height / 25); // 25pt per blank row
-        return min($blank_rows, 12); // Cap at 12 to be safe
-    }
+    // Calculate space available for data rows
+    $available_for_rows = $page_height_pt - $header_height_pt - $table_header_pt - $signature_height_pt - $bottom_margin_pt;
+    $max_possible_rows = floor($available_for_rows / $row_height_pt);
     
-    return 3; // Minimal blank rows for appearance
+    // REDUCE ROWS BY 6 as requested
+    $max_possible_rows = max(2, $max_possible_rows - 7);
+    
+    // Calculate blank rows needed
+    $blank_rows = max(0, $max_possible_rows - $equipment_count);
+    
+    return [
+        'blank_rows' => $blank_rows,
+        'total_rows' => $equipment_count + $blank_rows,
+        'equipment_rows' => $equipment_count,
+        'attach_signature' => false, // Always keep signature at bottom
+        'signature_at_bottom' => true, // Always at bottom
+        'debug' => [
+            'page_height_pt' => $page_height_pt,
+            'available_for_rows' => $available_for_rows,
+            'max_possible_rows' => $max_possible_rows,
+            'signature_height_pt' => $signature_height_pt
+        ]
+    ];
 }
 
-$blank_rows_count = calculateBlankRows(count($equipment_list));
+$row_calculation = calculateDynamicBlankRows(count($equipment_list));
 ?>
 
 <!DOCTYPE html>
@@ -71,31 +87,36 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         body {
             font-family: 'Times New Roman', Times, serif;
             margin: 0;
-            padding: 8mm;
+            padding: 10mm;
             font-size: 10pt;
             line-height: 1.1;
             color: #000;
             background: white;
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
         }
         
         .form-container {
             width: 100%;
-            max-width: none;
             margin: 0;
             background: white;
             display: flex;
             flex-direction: column;
-            min-height: 100%;
+            flex: 1;
+            box-sizing: border-box;
         }
         
         .header-section {
-            flex-shrink: 0; /* Don't allow header to shrink */
+            flex-shrink: 0;
+            margin-bottom: 15pt;
         }
         
         .content-section {
-            flex-grow: 1; /* Allow content to grow */
             display: flex;
             flex-direction: column;
+            flex: 1;
         }
         
         .header-right {
@@ -127,58 +148,40 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         .form-title {
             text-align: center;
             font-weight: bold;
-            font-size: 12pt;
-            font-family: 'Times New Roman', Times, serif;
+            font-size: 14pt;
             text-transform: uppercase;
-            letter-spacing: 1pt;
             margin: 0;
-            flex: 1;
         }
         
-        .form-header {
+        .form-subtitle {
+            text-align: center;
+            font-size: 12pt;
+            margin: 2pt 0 10pt 0;
+        }
+        
+        .form-info {
+            display: flex;
+            justify-content: space-between;
             margin-bottom: 15pt;
-            font-size: 10pt;
+            font-size: 9pt;
         }
         
-        .header-row {
-            display: flex;
-            margin-bottom: 8pt;
-        }
-        
-        .header-left {
+        .equipment-table-container {
             flex: 1;
             display: flex;
-            align-items: baseline;
-        }
-        
-        .header-right-field {
-            flex: 1;
-            display: flex;
-            align-items: baseline;
-            justify-content: flex-end;
-        }
-        
-        .field-label {
-            font-weight: bold;
-            margin-right: 8pt;
-            white-space: nowrap;
-        }
-        
-        .field-value {
-            border-bottom: 1px solid #000;
-            min-width: 200pt;
-            padding-bottom: 1pt;
-            display: inline-block;
-            text-align: left;
+            flex-direction: column;
         }
         
         .equipment-table {
-            width: calc(100% - 2px);
+            width: 100%;
             border-collapse: collapse;
-            margin-bottom: 0pt;
-            font-size: 9pt;
             border: 2px solid #000;
-            flex-grow: 1; /* Allow table to grow and fill space */
+            font-size: 8pt;
+            <?php if ($row_calculation['attach_signature']): ?>
+            margin-bottom: 0;
+            <?php else: ?>
+            margin-bottom: 0;
+            <?php endif; ?>
         }
         
         .equipment-table th,
@@ -190,7 +193,7 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
         }
         
         .equipment-table th {
-            background-color: white;
+            background-color: #f0f0f0;
             font-weight: bold;
             font-size: 8pt;
             text-transform: uppercase;
@@ -228,6 +231,11 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
             margin-bottom: 1pt;
         }
         
+        /* ENHANCED: Fixed row height for consistent layout */
+        .equipment-table tr {
+            height: 25pt;
+        }
+        
         .equipment-table .blank-row {
             height: 25pt;
         }
@@ -240,17 +248,20 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
             background-color: white;
         }
         
+        /* ENHANCED: Signature always at bottom with same width as table */
         .signatures-section {
-            width: calc(100% - 2px);
+            width: 100%;
             border: 2px solid #000;
-            border-top: none;
-            border-collapse: collapse;
+            border-top: 2px solid #000; /* Always separate signature box */
+            margin-top: 20pt; /* Space between table and signature */
             font-size: 9pt;
-            page-break-inside: avoid;
-            break-inside: avoid;
-            display: table;
-            table-layout: fixed;
-            margin: 0;
+            background: white;
+            position: absolute;
+            bottom: 10mm; /* Always at bottom above margin */
+            left: 10mm;
+            right: 10mm;
+            /* Match table width exactly */
+            box-sizing: border-box;
         }
         
         .signature-block {
@@ -258,12 +269,20 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
             border-right: 1px solid #000;
             padding: 15pt;
             background: white;
-            display: table-cell;
-            vertical-align: top;
+            float: left;
+            box-sizing: border-box;
+            min-height: 120pt;
         }
         
         .signature-block:last-child {
-            border-right: 2px solid #000;
+            border-right: none;
+        }
+        
+        /* Clear float after signature blocks */
+        .signatures-section::after {
+            content: "";
+            display: table;
+            clear: both;
         }
         
         .signature-header {
@@ -324,203 +343,207 @@ $blank_rows_count = calculateBlankRows(count($equipment_list));
             body { 
                 margin: 0; 
                 padding: 10mm;
-                -webkit-print-color-adjust: exact;
-                color-adjust: exact;
                 font-size: 10pt;
+                height: 100vh;
+                overflow: visible;
+                position: relative;
             }
             .no-print { display: none !important; }
+            
             .form-container { 
                 width: 100%;
+                height: calc(100vh - 20mm);
+                position: relative;
             }
             
-            /* Keep everything on one page */
+            /* ENHANCED: Signature always at bottom with exact table width */
             .signatures-section {
+                position: absolute !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                width: 100% !important; /* Match container width exactly */
+                border: 2px solid #000 !important;
+                border-top: 2px solid #000 !important;
+                background: white !important;
+                font-size: 9pt !important;
                 page-break-inside: avoid !important;
-                break-inside: avoid !important;
-                page-break-before: avoid !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
             }
             
+            .signature-block {
+                float: left !important;
+                width: 50% !important;
+                border-right: 1px solid #000 !important;
+                padding: 15pt !important;
+                box-sizing: border-box !important;
+                background: white !important;
+                min-height: 120pt !important;
+            }
+            
+            .signature-block:last-child {
+                border-right: none !important;
+            }
+            
+            .signatures-section::after {
+                content: "" !important;
+                display: table !important;
+                clear: both !important;
+            }
+            
+            /* Ensure table doesn't overlap with signature */
             .equipment-table {
-                page-break-after: avoid !important;
+                margin-bottom: 170pt !important; /* Space for signature + margin */
             }
             
-            /* Prevent page breaks */
-            * {
-                page-break-before: avoid !important;
-                page-break-after: avoid !important;
+            /* Prevent unwanted page breaks */
+            .equipment-table,
+            .equipment-table tbody,
+            .equipment-table tr {
+                page-break-inside: avoid !important;
             }
             
             @page {
                 margin: 10mm;
-                size: A4;
+                size: A4 portrait;
+            }
+        }
+        
+        @media screen {
+            .no-print {
+                background: #f8f9fa;
+                padding: 10px;
+                border-bottom: 1px solid #dee2e6;
+                margin: -10mm -10mm 10mm -10mm;
             }
             
-            html {
-                -webkit-print-color-adjust: exact;
+            .no-print a {
+                color: #007bff;
+                text-decoration: none;
+                font-weight: bold;
             }
-        }
-        
-        .print-buttons {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-        
-        .print-buttons button {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 3px;
-            cursor: pointer;
-            margin-left: 5px;
-            font-size: 11pt;
-        }
-        
-        .print-buttons button:hover {
-            background: #218838;
-        }
-        
-        .close-btn {
-            background: #6c757d !important;
-        }
-        
-        .close-btn:hover {
-            background: #545b62 !important;
+            
+            .no-print a:hover {
+                text-decoration: underline;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="no-print print-buttons">
-        <button onclick="window.print()">Print</button>
-        <button class="close-btn" onclick="window.close()">Close</button>
+    <div class="no-print">
+        <a href="view_deployment.php?ics_par_no=<?= urlencode($ics_par_no) ?>">← Back to Deployment Details</a>
+        <span style="float: right; font-size: 0.9em; color: #666;">
+            Equipment: <?= count($equipment_list) ?> | Blank Rows: <?= $row_calculation['blank_rows'] ?> | 
+            Max Rows: <?= $row_calculation['total_rows'] ?> | Signature: Bottom Fixed
+        </span>
     </div>
 
     <div class="form-container">
         <div class="header-section">
-            <div class="header-right">
-                Appendix 59
-            </div>
+            <div class="header-right">Appendix 10</div>
             
             <div class="title-logo-section">
                 <div class="dti-logo">
-                    <img src="dti-logo.png" style="width:100%; height:100%; object-fit: contain;" alt="DTI Logo">
+                    <img src="dti-logo.png" alt="DTI Logo" style="width: 60pt; height: 60pt;" onerror="this.style.display='none'">
                 </div>
-                <div class="form-title">
-                    INVENTORY CUSTODIAN SLIP
+                <div>
+                    <div class="form-title">INVENTORY CUSTODIAN SLIP</div>
                 </div>
             </div>
             
-            <div class="form-header">
-                <div class="header-row">
-                    <div class="header-left">
-                        <span class="field-label">Entity Name:</span>
-                        <span class="field-value">DTI Region VI</span>
-                    </div>
-                    <div class="header-right-field">
-                        <span class="field-label">ICS No.:</span>
-                        <span class="field-value"><?= htmlspecialchars($ics_par_no) ?></span>
-                    </div>
+            <div class="form-info">
+                <div>
+                    <strong>Entity Name:</strong> DTI Region VI<br>
+                    <strong>Fund Cluster:</strong> ISSP 2024
                 </div>
-                
-                <div class="header-row">
-                    <div class="header-left">
-                        <span class="field-label">Fund Cluster:</span>
-                        <span class="field-value"><?= htmlspecialchars($fund_source) ?></span>
-                    </div>
+                <div style="text-align: right;">
+                    <strong>ICS No.:</strong> <?= htmlspecialchars($ics_par_no) ?>
                 </div>
             </div>
         </div>
-        
+
         <div class="content-section">
-            <table class="equipment-table">
-            <thead>
-                <tr>
-                    <th rowspan="2" class="qty-col">Quantity</th>
-                    <th rowspan="2" class="unit-col">Unit</th>
-                    <th colspan="2">Amount</th>
-                    <th rowspan="2" class="desc-col">Description</th>
-                    <th rowspan="2" class="item-col">Inventory Item No.</th>
-                    <th rowspan="2" class="life-col">Estimated Useful Life</th>
-                </tr>
-                <tr>
-                    <th class="cost-col">Unit Cost</th>
-                    <th class="total-col">Total Cost</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($equipment_list as $item): ?>
-                <tr>
-                    <td><?= $item['quantity'] ?: 1 ?></td>
-                    <td><?= htmlspecialchars($item['unit'] ?: 'unit') ?></td>
-                    <td><?= number_format($item['amount_unit_cost'], 2) ?></td>
-                    <td><?= number_format($item['amount_unit_cost'] * ($item['quantity'] ?: 1), 2) ?></td>
-                    <td class="desc-col">
-                        <div class="description-content">
-                            <strong><?= htmlspecialchars($item['equipment_type']) ?></strong>
-                            <div class="description-line">Brand: <?= htmlspecialchars($item['brand']) ?></div>
-                            <div class="description-line">Model: <?= htmlspecialchars($item['model']) ?></div>
-                            <div class="description-line">Serial Number: <?= htmlspecialchars($item['serial_number']) ?></div>
-                            <?php if ($item['description_specification']): ?>
-                            <div class="description-line">Description: <?= htmlspecialchars($item['description_specification']) ?></div>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                    <td><?= htmlspecialchars($item['inventory_item_no_property_no']) ?></td>
-                    <td><?= $item['estimate_useful_life'] ?> Years</td>
-                </tr>
-                <?php endforeach; ?>
-                
-                <?php 
-                // Add blank rows to fill the page
-                for ($i = 0; $i < $blank_rows_count; $i++): 
-                ?>
-                <tr class="blank-row">
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td class="desc-col">&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                </tr>
-                <?php endfor; ?>
-            </tbody>
-        </table>
-        
-        <div class="signatures-section">
-            <div class="signature-block">
-                <div class="signature-header">Received by:</div>
-                <div class="signature-area"></div>
-                <div class="signature-name"><?= htmlspecialchars($deployment_info['custodian']) ?></div>
-                <div class="signature-label">Signature Over Printed Name</div>
-                <div class="signature-position"><?= htmlspecialchars($deployment_info['office_custodian']) ?></div>
-                <div class="signature-label">Position / Office</div>
-                <div class="date-section">
-                    <div class="date-box"></div>
-                </div>
-                <div class="date-label">Date</div>
+            <div class="equipment-table-container">
+                <table class="equipment-table">
+                    <thead>
+                        <tr>
+                            <th class="qty-col">QUANTITY</th>
+                            <th class="unit-col">UNIT</th>
+                            <th class="cost-col">AMOUNT</th>
+                            <th class="desc-col">DESCRIPTION</th>
+                            <th class="item-col">INVENTORY ITEM NO.</th>
+                            <th class="life-col">ESTIMATED USEFUL LIFE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($equipment_list as $equipment): ?>
+                        <tr>
+                            <td>1</td>
+                            <td>unit</td>
+                            <td><?= number_format($equipment['amount_unit_cost'], 2) ?></td>
+                            <td class="desc-col">
+                                <div class="description-content">
+                                    <strong><?= htmlspecialchars($equipment['equipment_type']) ?></strong>
+                                    <div class="description-line">Brand: <?= htmlspecialchars($equipment['brand']) ?></div>
+                                    <div class="description-line">Model: <?= htmlspecialchars($equipment['model']) ?></div>
+                                    <div class="description-line">Serial Number: <?= htmlspecialchars($equipment['serial_number']) ?></div>
+                                    <?php if ($equipment['description_specification']): ?>
+                                    <div class="description-line">Specifications: <?= htmlspecialchars($equipment['description_specification']) ?></div>
+                                    <?php endif; ?>
+                                    <div class="description-line">Acquisition Date: <?= htmlspecialchars($equipment['date_acquired'] ?? 'N/A') ?></div>
+                                    <div class="description-line">Color: Brown/Silver/Black (as applicable)</div>
+                                </div>
+                            </td>
+                            <td><?= htmlspecialchars($equipment['inventory_item_no_property_no'] ?? 'TBA') ?></td>
+                            <td><?= htmlspecialchars($equipment['estimate_useful_life'] ?? '3 Years') ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        
+                        <?php 
+                        // ENHANCED: Add calculated blank rows to fill space optimally
+                        for ($i = 0; $i < $row_calculation['blank_rows']; $i++): 
+                        ?>
+                        <tr class="blank-row">
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td class="desc-col">&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                        </tr>
+                        <?php endfor; ?>
+                    </tbody>
+                </table>
             </div>
             
-            <div class="signature-block">
-                <div class="signature-header">Received from:</div>
-                <div class="signature-area"></div>
-                <div class="signature-name">Pristine Ellaine D. Magdaug</div>
-                <div class="signature-label">Signature Over Printed Name</div>
-                <div class="signature-position">Supply Officer III / DTI RO 6</div>
-                <div class="signature-label">Position / Office</div>
-                <div class="date-section">
-                    <div class="date-box"></div>
+            <div class="signatures-section">
+                <div class="signature-block">
+                    <div class="signature-header">Received by:</div>
+                    <div class="signature-area"></div>
+                    <div class="signature-name"><?= htmlspecialchars($deployment_info['custodian']) ?></div>
+                    <div class="signature-label">Signature Over Printed Name</div>
+                    <div class="signature-position"><?= htmlspecialchars($deployment_info['office_custodian']) ?></div>
+                    <div class="signature-label">Position / Office</div>
+                    <div class="date-section">
+                        <div class="date-box"></div>
+                    </div>
+                    <div class="date-label">Date</div>
                 </div>
-                <div class="date-label">Date</div>
+                
+                <div class="signature-block">
+                    <div class="signature-header">Received from:</div>
+                    <div class="signature-area"></div>
+                    <div class="signature-name">Pristine Ellaine D. Magdaug</div>
+                    <div class="signature-label">Signature Over Printed Name</div>
+                    <div class="signature-position">Supply Officer III / DTI RO 6</div>
+                    <div class="signature-label">Position / Office</div>
+                    <div class="date-section">
+                        <div class="date-box"></div>
+                    </div>
+                    <div class="date-label">Date</div>
+                </div>
             </div>
         </div>
     </div>
-</div>
 </body>
 </html>
